@@ -72,6 +72,7 @@ def test_pending_oauth_login_round_trip(tmp_path) -> None:
     params = parse_qs(urlparse(loaded.authorization_url).query)
     assert loaded.state == pending.state
     assert loaded.code_verifier == pending.code_verifier
+    assert loaded.code_challenge == pending.code_challenge
     assert params["state"] == [pending.state]
     assert params["redirect_uri"] == [settings.redirect_uri(settings.redirect_port)]
 
@@ -94,6 +95,7 @@ async def test_exchange_code_for_tokens_posts_expected_form() -> None:
         code="code",
         code_verifier="verifier",
         redirect_uri="http://127.0.0.1:56121/callback",
+        code_challenge="challenge",
         client=client,
     )
     await client.aclose()
@@ -105,3 +107,5 @@ async def test_exchange_code_for_tokens_posts_expected_form() -> None:
     assert fields["client_id"] == [settings.xai_client_id]
     assert fields["code"] == ["code"]
     assert fields["code_verifier"] == ["verifier"]
+    assert fields["code_challenge"] == ["challenge"]
+    assert fields["code_challenge_method"] == ["S256"]

@@ -40,6 +40,7 @@ class PendingOAuthLogin:
     redirect_uri: str
     state: str
     code_verifier: str
+    code_challenge: str
     created_at: int
 
 
@@ -84,19 +85,21 @@ def oauth_state() -> str:
 def create_pending_oauth_login(settings: Settings | None = None) -> PendingOAuthLogin:
     settings = settings or get_settings()
     verifier = pkce_code_verifier()
+    challenge = pkce_code_challenge(verifier)
     state = oauth_state()
     redirect_uri = settings.redirect_uri(settings.redirect_port)
     authorization_url = build_authorization_url(
         settings,
         redirect_uri=redirect_uri,
         state=state,
-        code_challenge=pkce_code_challenge(verifier),
+        code_challenge=challenge,
     )
     return PendingOAuthLogin(
         authorization_url=authorization_url,
         redirect_uri=redirect_uri,
         state=state,
         code_verifier=verifier,
+        code_challenge=challenge,
         created_at=int(time.time()),
     )
 
@@ -124,6 +127,9 @@ def load_pending_oauth_login(path: Path | None = None) -> PendingOAuthLogin:
         redirect_uri=str(payload["redirect_uri"]),
         state=str(payload["state"]),
         code_verifier=str(payload["code_verifier"]),
+        code_challenge=str(
+            payload.get("code_challenge") or pkce_code_challenge(str(payload["code_verifier"]))
+        ),
         created_at=int(payload.get("created_at", 0)),
     )
 
@@ -151,6 +157,7 @@ async def complete_pending_oauth_login(
         code=code,
         code_verifier=pending.code_verifier,
         redirect_uri=pending.redirect_uri,
+        code_challenge=pending.code_challenge,
     )
     store.save(token_state)
     clear_pending_oauth_login(pending_path)
@@ -214,6 +221,7 @@ async def exchange_code_for_tokens(
     code: str,
     code_verifier: str,
     redirect_uri: str,
+    code_challenge: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> TokenState:
     payload = {
@@ -223,6 +231,9 @@ async def exchange_code_for_tokens(
         "redirect_uri": redirect_uri,
         "code_verifier": code_verifier,
     }
+    if code_challenge:
+        payload["code_challenge"] = code_challenge
+        payload["code_challenge_method"] = "S256"
     token_payload = await _post_token(settings, payload, client=client)
     return TokenState.from_token_response(token_payload)
 
