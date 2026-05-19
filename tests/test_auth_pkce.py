@@ -11,10 +11,13 @@ from grok2api.auth import (
     CallbackResult,
     OAuthError,
     build_authorization_url,
+    create_pending_oauth_login,
     exchange_code_for_tokens,
+    load_pending_oauth_login,
     parse_callback_url,
     pkce_code_challenge,
     pkce_code_verifier,
+    save_pending_oauth_login,
     validate_callback,
 )
 from grok2api.config import Settings
@@ -58,6 +61,18 @@ def test_parse_callback_url_accepts_full_url_and_plain_code() -> None:
     assert parsed.code == "abc"
     assert parsed.state == "xyz"
     assert parse_callback_url("abc").code == "abc"
+
+
+def test_pending_oauth_login_round_trip(tmp_path) -> None:
+    settings = Settings()
+    pending = create_pending_oauth_login(settings)
+    path = save_pending_oauth_login(pending, tmp_path / "pending.json")
+    loaded = load_pending_oauth_login(path)
+    params = parse_qs(urlparse(loaded.authorization_url).query)
+    assert loaded.state == pending.state
+    assert loaded.code_verifier == pending.code_verifier
+    assert params["state"] == [pending.state]
+    assert params["redirect_uri"] == [settings.redirect_uri(settings.redirect_port)]
 
 
 @pytest.mark.asyncio

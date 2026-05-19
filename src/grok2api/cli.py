@@ -8,7 +8,13 @@ import httpx
 import typer
 import uvicorn
 
-from .auth import OAuthError, token_metadata
+from .auth import (
+    OAuthError,
+    complete_pending_oauth_login,
+    create_pending_oauth_login,
+    save_pending_oauth_login,
+    token_metadata,
+)
 from .auth import login as oauth_login
 from .config import get_settings
 from .server import create_app
@@ -28,6 +34,29 @@ def login(
     settings = get_settings()
     try:
         state = asyncio.run(oauth_login(settings=settings, headless=headless))
+    except (OAuthError, TokenStoreError) as exc:
+        typer.echo(f"Login failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    metadata = token_metadata(state)
+    typer.echo("Login complete.")
+    if metadata.get("expires_in_seconds") is not None:
+        typer.echo(f"Access token expires in {metadata['expires_in_seconds']} seconds.")
+
+
+@app.command("login-url")
+def login_url() -> None:
+    pending = create_pending_oauth_login(get_settings())
+    path = save_pending_oauth_login(pending)
+    typer.echo(pending.authorization_url)
+    typer.echo(f"Pending login saved to {path}", err=True)
+
+
+@app.command("login-complete")
+def login_complete(callback_url_or_code: str) -> None:
+    try:
+        state = asyncio.run(
+            complete_pending_oauth_login(callback_url_or_code, settings=get_settings())
+        )
     except (OAuthError, TokenStoreError) as exc:
         typer.echo(f"Login failed: {exc}", err=True)
         raise typer.Exit(1) from exc

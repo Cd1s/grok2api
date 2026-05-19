@@ -4,11 +4,14 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import secrets
 import time
 import webbrowser
-from dataclasses import dataclass
+from contextlib import suppress
+from dataclasses import asdict, dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from threading import Event, Thread
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -16,7 +19,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import httpx
 
 from .config import Settings, get_settings
-from .token_store import TokenState, TokenStore, TokenStoreError
+from .token_store import TokenState, TokenStore, TokenStoreError, default_pending_oauth_file
 
 
 class OAuthError(RuntimeError):
@@ -29,6 +32,15 @@ class CallbackResult:
     state: str | None = None
     error: str | None = None
     error_description: str | None = None
+
+
+@dataclass(slots=True)
+class PendingOAuthLogin:
+    authorization_url: str
+    redirect_uri: str
+    state: str
+    code_verifier: str
+    created_at: int
 
 
 @dataclass(slots=True)
@@ -67,6 +79,82 @@ def pkce_code_challenge(verifier: str) -> str:
 
 def oauth_state() -> str:
     return secrets.token_urlsafe(32)
+
+
+def create_pending_oauth_login(settings: Settings | None = None) -> PendingOAuthLogin:
+    settings = settings or get_settings()
+    verifier = pkce_code_verifier()
+    state = oauth_state()
+    redirect_uri = settings.redirect_uri(settings.redirect_port)
+    authorization_url = build_authorization_url(
+        settings,
+        redirect_uri=redirect_uri,
+        state=state,
+        code_challenge=pkce_code_challenge(verifier),
+    )
+    return PendingOAuthLogin(
+        authorization_url=authorization_url,
+        redirect_uri=redirect_uri,
+        state=state,
+        code_verifier=verifier,
+        created_at=int(time.time()),
+    )
+
+
+def save_pending_oauth_login(pending: PendingOAuthLogin, path: Path | None = None) -> Path:
+    path = path or default_pending_oauth_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(json.dumps(asdict(pending), indent=2, sort_keys=True), encoding="utf-8")
+    with suppress(OSError):
+        os.chmod(tmp_path, 0o600)
+    tmp_path.replace(path)
+    with suppress(OSError):
+        os.chmod(path, 0o600)
+    return path
+
+
+def load_pending_oauth_login(path: Path | None = None) -> PendingOAuthLogin:
+    path = path or default_pending_oauth_file()
+    if not path.exists():
+        raise OAuthError("No pending OAuth login found. Run `grok2api login-url` first.")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return PendingOAuthLogin(
+        authorization_url=str(payload["authorization_url"]),
+        redirect_uri=str(payload["redirect_uri"]),
+        state=str(payload["state"]),
+        code_verifier=str(payload["code_verifier"]),
+        created_at=int(payload.get("created_at", 0)),
+    )
+
+
+def clear_pending_oauth_login(path: Path | None = None) -> None:
+    path = path or default_pending_oauth_file()
+    with suppress(FileNotFoundError):
+        path.unlink()
+
+
+async def complete_pending_oauth_login(
+    callback_url_or_code: str,
+    *,
+    settings: Settings | None = None,
+    store: TokenStore | None = None,
+    pending_path: Path | None = None,
+) -> TokenState:
+    settings = settings or get_settings()
+    store = store or TokenStore()
+    pending = load_pending_oauth_login(pending_path)
+    callback = parse_callback_url(callback_url_or_code)
+    code = validate_callback(callback, pending.state, require_state=callback.state is not None)
+    token_state = await exchange_code_for_tokens(
+        settings,
+        code=code,
+        code_verifier=pending.code_verifier,
+        redirect_uri=pending.redirect_uri,
+    )
+    store.save(token_state)
+    clear_pending_oauth_login(pending_path)
+    return token_state
 
 
 def build_authorization_url(

@@ -11,6 +11,7 @@ from typing import Any
 from platformdirs import user_config_dir
 
 TOKEN_FILE_ENV = "GROK2API_AUTH_FILE"
+PENDING_FILE_ENV = "GROK2API_OAUTH_PENDING_FILE"
 APP_NAME = "grok2api"
 
 
@@ -124,4 +125,15 @@ def default_auth_file() -> Path:
     override = os.getenv(TOKEN_FILE_ENV)
     if override:
         return Path(override).expanduser()
-    return Path(user_config_dir(APP_NAME, appauthor=False)) / "auth.json"
+    return default_config_dir() / "auth.json"
+
+
+def default_pending_oauth_file() -> Path:
+    override = os.getenv(PENDING_FILE_ENV)
+    if override:
+        return Path(override).expanduser()
+    return default_config_dir() / "pending-oauth.json"
+
+
+def default_config_dir() -> Path:
+    return Path(user_config_dir(APP_NAME, appauthor=False))

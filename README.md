@@ -42,13 +42,21 @@ grok2api login
 
 The CLI opens your browser, starts a loopback callback server on `127.0.0.1`, and stores the OAuth tokens locally after xAI redirects back.
 
-For a remote or headless machine:
+For an interactive remote or headless machine:
 
 ```bash
 grok2api login --headless
 ```
 
 Open the printed URL on a machine with a browser, then paste the final redirected callback URL when prompted.
+
+For non-interactive SSH sessions, split login into two commands:
+
+```bash
+grok2api login-url
+# open the printed URL, then pass back the final callback URL or code
+grok2api login-complete 'http://127.0.0.1:56121/callback?code=...&state=...'
+```
 
 ## Start the API server
 
