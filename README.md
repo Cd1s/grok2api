@@ -143,6 +143,9 @@ Environment variables:
 | `GROK2API_XAI_TOKEN_URL` | OAuth token endpoint. |
 | `GROK2API_REDIRECT_PORT` | Preferred loopback redirect port. Defaults to `56121`. |
 | `GROK2API_API_KEY` | Optional local proxy API key; required for remote binding. |
+| `GROK2API_DEFAULT_STORE` | Optional default `store` value for `/v1/responses`, e.g. `false`. |
+| `GROK2API_DEFAULT_PROMPT_CACHE_KEY` | Optional default `prompt_cache_key` for `/v1/responses`. |
+| `GROK2API_DEFAULT_REASONING_EFFORT` | Optional default reasoning effort when the request does not set `reasoning`. |
 
 The built-in OAuth client ID matches the observed Grok/Hermes OAuth flow. It is not an entitlement bypass; xAI still decides whether the authenticated account can use each model or API feature.
 
