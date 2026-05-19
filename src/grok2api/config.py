@@ -32,6 +32,9 @@ class Settings:
     redirect_path: str = DEFAULT_REDIRECT_PATH
     refresh_skew_seconds: int = DEFAULT_REFRESH_SKEW_SECONDS
     local_api_key: str | None = None
+    default_store: bool | None = None
+    default_prompt_cache_key: str | None = None
+    default_reasoning_effort: str | None = None
 
     def redirect_uri(self, port: int | None = None) -> str:
         actual_port = port if port is not None else self.redirect_port
@@ -56,4 +59,14 @@ def get_settings() -> Settings:
         redirect_port=int(os.getenv("GROK2API_REDIRECT_PORT", str(DEFAULT_REDIRECT_PORT))),
         redirect_path=DEFAULT_REDIRECT_PATH,
         local_api_key=os.getenv("GROK2API_API_KEY"),
+        default_store=_env_bool("GROK2API_DEFAULT_STORE"),
+        default_prompt_cache_key=os.getenv("GROK2API_DEFAULT_PROMPT_CACHE_KEY"),
+        default_reasoning_effort=os.getenv("GROK2API_DEFAULT_REASONING_EFFORT"),
     )
+
+
+def _env_bool(name: str) -> bool | None:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return None
+    return value.lower() in {"1", "true", "yes", "on"}

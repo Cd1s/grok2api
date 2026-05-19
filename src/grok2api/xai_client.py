@@ -94,6 +94,10 @@ class XAIClient:
             "Content-Type": "application/json",
         }
 
+    async def close(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+
     def _client_context(self) -> httpx.AsyncClient:
         if self._client is not None:
             return _BorrowedAsyncClient(self._client)

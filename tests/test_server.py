@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from grok2api.config import Settings
 from grok2api.server import create_app
 from grok2api.xai_client import UpstreamResponse
 
@@ -76,6 +77,47 @@ def test_responses_forwards_body() -> None:
     assert response.json() == {"id": "resp_1"}
     assert fake.last_path == "/responses"
     assert fake.last_body == {"model": "grok", "input": "hi"}
+
+
+def test_responses_applies_configured_defaults() -> None:
+    fake = FakeXAIClient(body=b'{"id":"resp_1"}')
+    settings = Settings(
+        default_store=False,
+        default_prompt_cache_key="sub2api:grok",
+        default_reasoning_effort="low",
+    )
+    client = TestClient(create_app(settings=settings, xai_client=fake))
+    response = client.post(
+        "/v1/responses",
+        headers={"Authorization": "Bearer local"},
+        json={"model": "grok", "input": "hi"},
+    )
+    assert response.status_code == 200
+    assert fake.last_body == {
+        "model": "grok",
+        "input": "hi",
+        "store": False,
+        "prompt_cache_key": "sub2api:grok",
+        "reasoning": {"effort": "low"},
+    }
+
+
+def test_responses_does_not_override_explicit_defaults() -> None:
+    fake = FakeXAIClient(body=b'{"id":"resp_1"}')
+    settings = Settings(default_store=False, default_reasoning_effort="low")
+    client = TestClient(create_app(settings=settings, xai_client=fake))
+    response = client.post(
+        "/v1/responses",
+        headers={"Authorization": "Bearer local"},
+        json={"model": "grok", "input": "hi", "store": True, "reasoning": {"effort": "high"}},
+    )
+    assert response.status_code == 200
+    assert fake.last_body == {
+        "model": "grok",
+        "input": "hi",
+        "store": True,
+        "reasoning": {"effort": "high"},
+    }
 
 
 def test_chat_completions_direct_pass_through() -> None:

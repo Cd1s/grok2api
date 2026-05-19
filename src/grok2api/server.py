@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
@@ -18,21 +20,39 @@ def create_app(
     api_key: str | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
-    client = xai_client or XAIClient(settings=settings)
     local_api_key = api_key if api_key is not None else settings.local_api_key
-    app = FastAPI(title="grok2api", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        if xai_client is not None:
+            _app.state.xai_client = xai_client
+            yield
+            return
+        http_client = httpx.AsyncClient(timeout=None, http2=True)
+        _app.state.xai_client = XAIClient(settings=settings, client=http_client)
+        try:
+            yield
+        finally:
+            await _app.state.xai_client.close()
+
+    app = FastAPI(title="grok2api", version="0.1.0", lifespan=lifespan)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    if xai_client is not None:
+        app.state.xai_client = xai_client
+
     @app.get("/v1/models")
-    async def models(authorization: str | None = Header(default=None)) -> Response:
+    async def models(
+        request: Request, authorization: str | None = Header(default=None)
+    ) -> Response:
         auth_error = _auth_error(authorization, local_api_key)
         if auth_error:
             return auth_error
         try:
-            upstream = await client.request_json("GET", "/models")
+            upstream = await request.app.state.xai_client.request_json("GET", "/models")
         except TokenStoreError as exc:
             return _login_required(exc)
         return _raw_response(upstream.status_code, upstream.headers, upstream.body)
@@ -46,8 +66,9 @@ def create_app(
             request,
             authorization=authorization,
             api_key=local_api_key,
-            client=client,
+            client=request.app.state.xai_client,
             upstream_path="/responses",
+            settings=settings,
         )
 
     @app.post("/v1/chat/completions")
@@ -59,8 +80,9 @@ def create_app(
             request,
             authorization=authorization,
             api_key=local_api_key,
-            client=client,
+            client=request.app.state.xai_client,
             upstream_path="/chat/completions",
+            settings=settings,
         )
 
     return app
@@ -73,6 +95,7 @@ async def _proxy_json_endpoint(
     api_key: str | None,
     client: XAIClient,
     upstream_path: str,
+    settings: Settings,
 ) -> Response:
     auth_error = _auth_error(authorization, api_key)
     if auth_error:
@@ -99,6 +122,7 @@ async def _proxy_json_endpoint(
                 }
             },
         )
+    payload = _apply_request_defaults(payload, upstream_path, settings)
 
     try:
         if wants_stream(payload):
@@ -117,6 +141,21 @@ async def _proxy_json_endpoint(
     except TokenStoreError as exc:
         return _login_required(exc)
     return _raw_response(upstream.status_code, upstream.headers, upstream.body)
+
+
+def _apply_request_defaults(
+    payload: dict[str, Any], upstream_path: str, settings: Settings
+) -> dict[str, Any]:
+    if upstream_path != "/responses":
+        return payload
+    updated = dict(payload)
+    if settings.default_store is not None and "store" not in updated:
+        updated["store"] = settings.default_store
+    if settings.default_prompt_cache_key and "prompt_cache_key" not in updated:
+        updated["prompt_cache_key"] = settings.default_prompt_cache_key
+    if settings.default_reasoning_effort and "reasoning" not in updated:
+        updated["reasoning"] = {"effort": settings.default_reasoning_effort}
+    return updated
 
 
 def _raw_response(status_code: int, headers: dict[str, str], body: bytes) -> Response:
