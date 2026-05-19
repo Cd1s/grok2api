@@ -120,6 +120,36 @@ def test_responses_does_not_override_explicit_defaults() -> None:
     }
 
 
+def test_responses_drops_tool_choice_without_tools() -> None:
+    fake = FakeXAIClient(body=b'{"id":"resp_1"}')
+    client = TestClient(create_app(xai_client=fake))
+    response = client.post(
+        "/v1/responses",
+        headers={"Authorization": "Bearer local"},
+        json={"model": "grok", "input": "hi", "tool_choice": "auto"},
+    )
+    assert response.status_code == 200
+    assert fake.last_body == {"model": "grok", "input": "hi"}
+
+
+def test_responses_keeps_tool_choice_with_tools() -> None:
+    fake = FakeXAIClient(body=b'{"id":"resp_1"}')
+    client = TestClient(create_app(xai_client=fake))
+    tool = {"type": "function", "name": "search", "parameters": {"type": "object"}}
+    response = client.post(
+        "/v1/responses",
+        headers={"Authorization": "Bearer local"},
+        json={"model": "grok", "input": "hi", "tools": [tool], "tool_choice": "auto"},
+    )
+    assert response.status_code == 200
+    assert fake.last_body == {
+        "model": "grok",
+        "input": "hi",
+        "tools": [tool],
+        "tool_choice": "auto",
+    }
+
+
 def test_chat_completions_direct_pass_through() -> None:
     fake = FakeXAIClient(body=b'{"id":"chatcmpl_1"}')
     client = TestClient(create_app(xai_client=fake))

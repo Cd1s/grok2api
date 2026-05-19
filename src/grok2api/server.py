@@ -155,6 +155,8 @@ def _apply_request_defaults(
         updated["prompt_cache_key"] = settings.default_prompt_cache_key
     if settings.default_reasoning_effort and "reasoning" not in updated:
         updated["reasoning"] = {"effort": settings.default_reasoning_effort}
+    if updated.get("tool_choice") and not updated.get("tools"):
+        updated.pop("tool_choice", None)
     return updated
 
 
