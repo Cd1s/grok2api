@@ -137,6 +137,7 @@ Environment variables:
 | --- | --- |
 | `GROK2API_XAI_CLIENT_ID` | OAuth client ID. Defaults to the observed Grok/Hermes public client ID. |
 | `GROK2API_XAI_SCOPE` | OAuth scope. |
+| `GROK2API_XAI_REFERRER` | OAuth authorize referrer. Defaults to `hermes-agent` for compatibility with the observed public client. |
 | `GROK2API_XAI_API_BASE_URL` | Upstream API base URL. Defaults to `https://api.x.ai/v1`. |
 | `GROK2API_XAI_AUTHORIZATION_URL` | OAuth authorization endpoint. |
 | `GROK2API_XAI_TOKEN_URL` | OAuth token endpoint. |

@@ -49,6 +49,7 @@ def test_authorization_url_contains_expected_params() -> None:
     assert params["scope"] == [settings.xai_scope]
     assert params["code_challenge_method"] == ["S256"]
     assert params["plan"] == ["generic"]
+    assert params["referrer"] == ["hermes-agent"]
 
 
 def test_validate_callback_rejects_state_mismatch() -> None:

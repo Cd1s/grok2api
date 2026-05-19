@@ -173,7 +173,7 @@ def build_authorization_url(
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "plan": "generic",
-        "referrer": "grok2api",
+        "referrer": settings.xai_referrer,
     }
     return f"{settings.xai_authorization_url}?{urlencode(params)}"
 

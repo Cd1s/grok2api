@@ -10,6 +10,7 @@ DEFAULT_XAI_TOKEN_URL = "https://auth.x.ai/oauth2/token"
 DEFAULT_XAI_API_BASE_URL = "https://api.x.ai/v1"
 DEFAULT_XAI_CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828"
 DEFAULT_XAI_SCOPE = "openid profile email offline_access grok-cli:access api:access"
+DEFAULT_XAI_REFERRER = "hermes-agent"
 DEFAULT_REDIRECT_HOST = "127.0.0.1"
 DEFAULT_REDIRECT_PORT = 56121
 DEFAULT_REDIRECT_PATH = "/callback"
@@ -25,6 +26,7 @@ class Settings:
     xai_api_base_url: str = DEFAULT_XAI_API_BASE_URL
     xai_client_id: str = DEFAULT_XAI_CLIENT_ID
     xai_scope: str = DEFAULT_XAI_SCOPE
+    xai_referrer: str = DEFAULT_XAI_REFERRER
     redirect_host: str = DEFAULT_REDIRECT_HOST
     redirect_port: int = DEFAULT_REDIRECT_PORT
     redirect_path: str = DEFAULT_REDIRECT_PATH
@@ -49,6 +51,7 @@ def get_settings() -> Settings:
         ),
         xai_client_id=os.getenv("GROK2API_XAI_CLIENT_ID", DEFAULT_XAI_CLIENT_ID),
         xai_scope=os.getenv("GROK2API_XAI_SCOPE", DEFAULT_XAI_SCOPE),
+        xai_referrer=os.getenv("GROK2API_XAI_REFERRER", DEFAULT_XAI_REFERRER),
         redirect_host=DEFAULT_REDIRECT_HOST,
         redirect_port=int(os.getenv("GROK2API_REDIRECT_PORT", str(DEFAULT_REDIRECT_PORT))),
         redirect_path=DEFAULT_REDIRECT_PATH,
